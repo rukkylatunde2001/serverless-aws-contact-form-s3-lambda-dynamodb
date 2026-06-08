@@ -61,7 +61,7 @@ Browser  ──HTTPS POST──►  API Gateway (/contact)  ──Trigger──�
 
 #### Step 1.1 — Create an S3 Bucket
 1. AWS Console → **S3** → **Create bucket**
-2. Bucket name: `nextwork-contact-form-yourname` (must be unique globally)
+2. Bucket name: `mystaticwebsite-contact-form` (must be unique globally)
 3. Region: `us-east-1`
 4. **Uncheck** "Block all public access" → confirm
 5. Click **Create bucket**
@@ -89,7 +89,7 @@ Create a file called `index.html` on your computer using the file in this repo (
             "Effect": "Allow",
             "Principal": "*",
             "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::mystatic-website/*"
+            "Resource": "arn:aws:s3:::mystaticwebsite-contact-form/*"
         }
     ]
 }
