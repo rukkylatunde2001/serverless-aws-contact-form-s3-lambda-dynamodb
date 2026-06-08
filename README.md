@@ -178,9 +178,9 @@ Replace the default code with the contents of `lambda_function.py` from this rep
 3. Stage name: `prod`
 4. Click **Deploy**
 5. Copy the **Invoke URL** :
-   `https://xxxx.execute-api.us-east-1.amazonaws.com/prod`
+   `https://h2zgh2z1g9.execute-api.us-east-1.amazonaws.com/prod`
 6. Your full API endpoint is:
-   `https://xxxx.execute-api.us-east-1.amazonaws.com/prod/contact`
+   `https://h2zgh2z1g9.execute-api.us-east-1.amazonaws.com/prod/contact`
 
 ---
 
