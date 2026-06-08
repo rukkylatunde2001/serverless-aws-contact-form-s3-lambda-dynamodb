@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Contact Rukayat</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; background-color: #f5f5f5; }
+        h1 { color: #333; }
+        input, textarea { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #ff9900; color: white; padding: 12px 30px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #e68900; }
+        #response { margin-top: 20px; padding: 10px; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Contact Me</h1>
+    <p>Send me a message and I'll get back to you!</p>
+
+    <input type="text" id="name" placeholder="Your Name">
+    <input type="email" id="email" placeholder="Your Email">
+    <textarea id="message" rows="5" placeholder="Your message..."></textarea>
+    <button onclick="submitForm()">Send Message</button>
+    <div id="response"></div>
+
+    <script>
+        async function submitForm() {
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const message = document.getElementById('message').value;
+
+            if (!name || !email || !message) {
+                showResponse('Please fill in all fields.', false);
+                return;
+            }
+
+            const API_URL = 'https://h2zgh2z1g9.execute-api.us-east-1.amazonaws.com/prod/contact';
+            
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, message }),
+                    mode: 'cors'
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    showResponse('Message sent successfully!', true);
+                    document.getElementById('name').value = '';
+                    document.getElementById('email').value = '';
+                    document.getElementById('message').value = '';
+                } else {
+                    showResponse('Something went wrong: ' + data.error, false);
+                }
+            } catch (error) {
+                showResponse('Error: ' + error.message, false);
+            }
+        }
+
+        function showResponse(msg, success) {
+            const div = document.getElementById('response');
+            div.textContent = msg;
+            div.className = success ? 'success' : 'error';
+        }
+    </script>
+</body>
+</html>
