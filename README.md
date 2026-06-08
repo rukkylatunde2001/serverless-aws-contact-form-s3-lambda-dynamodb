@@ -1,10 +1,10 @@
 # serverless-contact-form-aws
 
-> A fully serverless contact form built end-to-end on AWS free-tier services. A static HTML page hosted on S3 collects user messages and sends them via API Gateway to a Lambda function, which stores each submission in DynamoDB — zero servers, zero maintenance, zero cost for personal use.
+> A fully serverless contact form built end-to-end on AWS free-tier services. A static HTML page hosted on S3 collects user messages and sends them via API Gateway to a Lambda function (Python), which stores each submission in DynamoDB — zero servers, zero maintenance, zero cost for personal use.
 
 ![AWS](https://img.shields.io/badge/AWS-Serverless-FF9900?logo=amazonaws&logoColor=white)
 ![S3](https://img.shields.io/badge/S3-Static%20Hosting-3F8624?logo=amazons3&logoColor=white)
-![Lambda](https://img.shields.io/badge/Lambda-Python-E97B00?logo=awslambda&logoColor=white)
+![Lambda](https://img.shields.io/badge/Lambda-Python%203.12-E97B00?logo=awslambda&logoColor=white)
 ![DynamoDB](https://img.shields.io/badge/DynamoDB-NoSQL-2E73B8?logo=amazondynamodb&logoColor=white)
 ![Free Tier](https://img.shields.io/badge/Cost-%240.00%2Fmonth-brightgreen)
 
@@ -19,33 +19,20 @@ Browser  ──HTTPS POST──►  API Gateway (/contact)  ──Trigger──�
    └──────────────── 200 OK "Message sent successfully!" ◄──────────┘
 ```
 
-**Services used:**
-
 | Service | Role |
 |---|---|
 | Amazon S3 | Hosts the static `index.html` contact form |
-| Amazon API Gateway | Exposes a REST endpoint `POST /contact` |
-| AWS Lambda | Processes form data, generates submission ID |
-| Amazon DynamoDB | Stores submissions (name, email, message, timestamp) |
-
----
-
-## Project Structure
-
-```
-.
-├── index.html          # Contact form frontend (uploaded to S3)
-├── lambda_function.py  # Lambda handler (Python)
-└── README.md
-```
+| Amazon API Gateway | Exposes `POST /contact` with CORS enabled |
+| AWS Lambda | Python function that parses and saves form data |
+| Amazon DynamoDB | Stores every submission with a UUID + timestamp |
 
 ---
 
 ## How It Works
 
-1. **S3** serves `index.html` as a static website with a contact form (Name, Email, Message).
+1. **S3** serves `index.html` — a static contact form with Name, Email, and Message fields.
 2. On submit, JavaScript sends a `POST` request to the **API Gateway** endpoint.
-3. **API Gateway** triggers the **Lambda** function with the request body.
+3. **API Gateway** triggers the **Lambda** Python function with the request body.
 4. **Lambda** parses the JSON, generates a UUID, and writes the item to **DynamoDB**.
 5. Lambda returns `200 OK` with `{"message": "Form submitted successfully!"}`.
 6. The frontend displays a green success banner to the user.
@@ -71,71 +58,157 @@ Browser  ──HTTPS POST──►  API Gateway (/contact)  ──Trigger──�
 
 ### Prerequisites
 - AWS account (free tier is sufficient)
-- Basic familiarity with the AWS console
-
-### Step 1 — DynamoDB
-1. Go to **DynamoDB → Tables → Create table**
-2. Table name: `ContactFormSubmissions`
-3. Partition key: `submissionId` (String)
-4. Leave all other settings as default → **Create**
-
-### Step 2 — Lambda
-1. Go to **Lambda → Create function**
-2. Author from scratch, Runtime: **Python 3.x**
-3. Paste the code from `lambda_function.py`
-4. Add an **IAM permission** to the Lambda execution role: `dynamodb:PutItem` on your table
-5. **Deploy** and run the test — you should see `statusCode: 200`
-
-### Step 3 — API Gateway
-1. Go to **API Gateway → Create API → REST API**
-2. Create resource: `/contact`
-3. Enable **CORS** on the resource
-4. Create method: `POST` → Integration type: **Lambda** → select your function
-5. **Deploy API** to a stage (e.g. `prod`)
-6. Copy the **Invoke URL** (e.g. `https://xxxx.execute-api.us-east-1.amazonaws.com/prod/contact`)
-
-### Step 4 — Frontend (S3)
-1. Open `index.html` and replace the `API_URL` variable with your API Gateway invoke URL
-2. Go to **S3 → Create bucket**
-3. Uncheck "Block all public access"
-4. Enable **Static website hosting** under Properties
-5. Add a **Bucket policy** to allow public `GetObject`
-6. Upload `index.html`
-7. Open the S3 website URL to test the live form
+- A text editor (Notepad, VS Code, anything)
+- No coding experience required — everything is done in the AWS Console
 
 ---
 
-## Lambda Function
+### PHASE 1 — Host a Static Website on S3
 
-```python
-import json
-import boto3
-import uuid
-from datetime import datetime
+#### Step 1.1 — Create an S3 Bucket
+1. AWS Console → **S3** → **Create bucket**
+2. Bucket name: `nextwork-contact-form-yourname` (must be unique globally)
+3. Region: `us-east-1`
+4. **Uncheck** "Block all public access" → confirm
+5. Click **Create bucket**
 
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('ContactFormSubmissions')
+#### Step 1.2 — Enable Static Website Hosting
+1. Click your bucket → **Properties** tab
+2. Scroll to **Static website hosting** → **Edit**
+3. Enable it → Index document: `index.html`
+4. Click **Save changes**
 
-def lambda_handler(event, context):
-    body = json.loads(event['body'])
-    
-    table.put_item(Item={
-        'submissionId': str(uuid.uuid4()),
-        'name':         body['name'],
-        'email':        body['email'],
-        'message':      body['message'],
-        'timestamp':    datetime.utcnow().isoformat()
-    })
-    
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json'
-        },
-        'body': json.dumps({'message': 'Form submitted successfully!'})
-    }
+#### Step 1.3 — Create Your Website File
+Create a file called `index.html` on your computer using the file in this repo (`index.html`).
+
+> ⚠️ Leave `YOUR_API_GATEWAY_URL_HERE` as-is for now — you'll fill it in during Phase 5.
+
+#### Step 1.4 — Upload and Make Public
+1. In your S3 bucket → **Objects** tab → **Upload** → upload `index.html`
+2. Go to **Permissions** tab → **Bucket policy** → **Edit**
+3. Paste this policy (replace `YOUR-BUCKET-NAME`):
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "PublicReadGetObject",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::YOUR-BUCKET-NAME/*"
+        }
+    ]
+}
 ```
+
+4. Click **Save changes**
+5. Go back to **Properties** → Static website hosting → copy the **website endpoint URL**
+6. Open it in your browser — you should see your contact form! ✅
+
+---
+
+### PHASE 2 — Create the DynamoDB Database
+
+#### Step 2.1 — Create a DynamoDB Table
+1. AWS Console → **DynamoDB** → **Create table**
+2. Table name: `ContactFormSubmissions`
+3. Partition key: `submissionId` (String)
+4. Leave everything else as default
+5. Click **Create table**
+
+> DynamoDB is a NoSQL database — no columns, no schemas. Each item can have different fields. Perfect for storing form submissions.
+
+---
+
+### PHASE 3 — Create the Lambda Function
+
+#### Step 3.1 — Create the Function
+1. AWS Console → **Lambda** → **Create function**
+2. Select **Author from scratch**
+3. Function name: `ContactFormProcessor`
+4. Runtime: **Python 3.12**
+5. Click **Create function**
+
+#### Step 3.2 — Write the Lambda Code
+Replace the default code with the contents of `lambda_function.py` from this repo, then click **Deploy**.
+
+#### Step 3.3 — Give Lambda Permission to Write to DynamoDB
+1. In your Lambda function → **Configuration** tab → **Permissions**
+2. Click the IAM role name (opens IAM)
+3. **Add permissions** → **Attach policies**
+4. Search `AmazonDynamoDBFullAccess` → attach it
+5. Go back to Lambda
+
+#### Step 3.4 — Test Your Lambda
+1. Click **Test** → **Create new test event**
+2. Event name: `TestForm`
+3. Replace the test JSON with:
+
+```json
+{
+    "body": "{\"name\": \"Rukayat\", \"email\": \"test@test.com\", \"message\": \"Hello from Lambda test!\"}"
+}
+```
+
+4. Click **Test** — you should see `statusCode: 200` ✅
+5. Go to DynamoDB → your table → **Explore items** — you should see the test entry!
+
+---
+
+### PHASE 4 — Create the API Gateway
+
+#### Step 4.1 — Create the API
+1. AWS Console → **API Gateway** → **Create API**
+2. Choose **HTTP API** → **Build**
+3. API name: `ContactFormAPI`
+4. Click **Next** → **Next** → **Create**
+
+#### Step 4.2 — Create a Route
+1. In your API → **Routes** → **Create**
+2. Method: **POST**
+3. Resource path: `/contact`
+4. Click **Create**
+
+#### Step 4.3 — Attach Lambda to the Route
+1. Click your `/contact` route → **Attach integration**
+2. **Create and attach an integration**
+3. Integration type: **Lambda function**
+4. Select your `ContactFormProcessor` function
+5. Click **Create**
+
+#### Step 4.4 — Enable CORS
+1. In your API → **CORS** → **Configure**
+2. Access-Control-Allow-Origin: `*`
+3. Access-Control-Allow-Methods: `POST, OPTIONS`
+4. Access-Control-Allow-Headers: `Content-Type`
+5. Click **Save**
+
+#### Step 4.5 — Deploy and Get Your URL
+1. In your API → **Deploy** → select stage `$default`
+2. Copy the **Invoke URL** — it looks like:
+   `https://abc123.execute-api.us-east-1.amazonaws.com`
+3. Your full API endpoint is:
+   `https://abc123.execute-api.us-east-1.amazonaws.com/contact`
+
+---
+
+### PHASE 5 — Connect Everything
+
+#### Step 5.1 — Update index.html with Your API URL
+1. Open `index.html` on your computer
+2. Find this line: `const API_URL = 'YOUR_API_GATEWAY_URL_HERE';`
+3. Replace it with your actual URL:
+   `const API_URL = 'https://abc123.execute-api.us-east-1.amazonaws.com/contact';`
+4. Upload the updated `index.html` to S3 (overwrite the old one)
+
+#### Step 5.2 — Test the Full Flow
+1. Open your S3 website URL in the browser
+2. Fill in the contact form
+3. Click **Send Message**
+4. You should see: **"Message sent successfully!"** ✅
+5. Go to DynamoDB → Explore items → your submission is there! ✅
 
 ---
 
@@ -144,42 +217,46 @@ def lambda_handler(event, context):
 ### Contact Form (Local)
 ![Contact form running locally](images/contactform.png)
 
-### Uploaded to S3 & Live
+### index.html Uploaded to S3
 ![index.html uploaded to S3 bucket](images/upload-index-file.png)
 
 ### API Gateway — /contact Resource
 ![API Gateway ContactFormAPI with POST and OPTIONS methods](images/API_create.png)
 
-### Lambda Test — Success
+### Lambda Test — 200 OK
 ![Lambda function executing with 200 OK response](images/lambda_test.png)
 
 ### Successful Form Submission
 ![Form showing "Message sent successfully!" banner](images/sucessful-submittion.png)
 
-### DynamoDB — First Submission
-![DynamoDB table showing first test submission from Lambda](images/dynamo-table.png)
+### DynamoDB — First Submission (from Lambda test)
+![DynamoDB table showing first test submission](images/dynamo-table.png)
 
-### DynamoDB — Multiple Submissions
-![DynamoDB table showing two real form submissions](images/submitted-forms.png)
+### DynamoDB — Multiple Submissions (live form)
+![DynamoDB table showing two real submissions](images/submitted-forms.png)
 
 ---
 
 ## What I Learned
 
-- How to connect AWS services end-to-end without managing any servers
-- Setting up CORS correctly between S3, API Gateway, and Lambda
-- Storing structured data in DynamoDB with a UUID partition key
-- Hosting a static website on S3 with public access
+- How to connect four AWS services end-to-end without managing any servers
+- Setting up CORS correctly between a static S3 site, API Gateway, and Lambda
+- Writing a Python Lambda function to parse JSON and write to DynamoDB
+- Storing structured data in DynamoDB using a UUID as a partition key
+- Hosting a static website publicly on S3
 
 ---
 
 ## Cost
 
 This project runs entirely within the **AWS Free Tier**:
-- S3: 5 GB storage, 20,000 GET requests/month free
-- API Gateway: 1 million REST API calls/month free
-- Lambda: 1 million requests/month free
-- DynamoDB: 25 GB storage, 25 WCU/RCU free
+
+| Service | Free Tier Allowance |
+|---|---|
+| Amazon S3 | 5 GB storage, 20,000 GET requests/month |
+| API Gateway | 1 million REST API calls/month |
+| AWS Lambda | 1 million requests/month |
+| Amazon DynamoDB | 25 GB storage, 25 WCU/RCU |
 
 **Estimated cost for personal use: $0.00/month**
 
